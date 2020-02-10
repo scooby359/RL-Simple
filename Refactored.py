@@ -6,7 +6,8 @@ import gym
 import random
 
 ############
-# Parameters
+# Hyper Parameters
+# Not learnt by RL process
 ############
 
 MAX_EPSILON = 1
@@ -14,6 +15,7 @@ MIN_EPSILON = 0.01
 LAMBDA = 0.00001
 BATCH_SIZE = 64
 GAMMA = 0.9
+
 
 class RLAgent:
     # Constructor
@@ -69,8 +71,8 @@ class RLAgent:
         # Setup TensorBoard writer - create new folder for instance
         self._writer = tf.summary.FileWriter("./tensorboard/" + self._timestamp)
 
-        # tf.summary.scalar("Loss", tf.losses) - TODO
-        # self._write_op = tf.summary.merge_all() - TODO
+        # tf.summary.scalar("Loss", tf.losses)
+        # self._write_op = tf.summary.merge_all()
 
     # Input a single state to get a prediction
     # Reshape to ensure data size is numpy array (1 x num_states)
@@ -230,6 +232,32 @@ class GameRunner:
             y[i] = current_q
         self._model.train_batch(self._sess, x, y)
 
+    def _make_result_dir(self, time_stamp):
+        from errno import EEXIST
+        from os import makedirs, path
+
+        path = "./results/%s/" % time_stamp
+
+        try:
+            makedirs(path)
+        except OSError as exc:
+            if exc.errno == EEXIST and path.isdir(path):
+                pass
+            else:
+                raise
+
+    def save_results(self):
+        # Save output of max_x and rewards to image file
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        self._make_result_dir(timestamp)
+        plt.plot(self._reward_store)
+        plt.savefig("./results/%s/rewards.png" % timestamp)
+        plt.show()
+        plt.close("all")
+        plt.plot(self._max_x_store)
+        plt.savefig("./results/%s/max_x.png" % timestamp)
+        plt.show()
+
     @property
     def reward_store(self):
         return self._reward_store
@@ -253,7 +281,7 @@ if __name__ == "__main__":
         sess.run(model.tf_variable_initializer)
         gr = GameRunner(sess, model, env, mem, MAX_EPSILON, MIN_EPSILON,
                         LAMBDA)
-        num_episodes = 300
+        num_episodes = 2
         cnt = 0
 
         while cnt < num_episodes:
@@ -262,8 +290,4 @@ if __name__ == "__main__":
             gr.run()
             cnt += 1
 
-        plt.plot(gr.reward_store)
-        plt.show()
-        plt.close("all")
-        plt.plot(gr.max_x_store)
-        plt.show()
+        gr.save_results()
