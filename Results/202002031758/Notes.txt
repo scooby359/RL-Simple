@@ -1,0 +1,13 @@
+Gave smaller rewards for some progress on X
+But, found it was preferring to stay in the middle (small reward), than take the risk of going left (no reward) to gain a higher reward for reaching further on the right (high reward)
+
+   if next_state[0] >= -0.5:
+                reward += 1
+            elif next_state[0] >= 0.0:
+                reward += 5
+            elif next_state[0] >= 0.1:
+                reward += 10
+            elif next_state[0] >= 0.25:
+                reward += 20
+            elif next_state[0] >= 0.5:
+                reward += 100
