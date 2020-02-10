@@ -36,7 +36,11 @@ class RLAgent:
         self._timestamp = TIMESTAMP
         self._write_op = None
         self._writer = None
-        self._saver = None # tf.train.Saver()
+        self._saver = None # tf.train.Saver() # to save / load models
+        self._tb_summary = None
+        self._loss = None
+        self._tf_loss_ph = None
+        self._tf_loss_summary = None
 
         self._tf_states = None
         self._tf_qsa = None
@@ -58,28 +62,28 @@ class RLAgent:
         self._tf_qsa = tf.placeholder(dtype=tf.float32, shape=[None, self._action_count], name="tf_qsa")
         
         # Create TF layers
-        # Hidden layer, 50 nodes, relu activation
+        # Layer 1, 50 nodes, relu activation
         layer_1 = tf.layers.dense(self._tf_states, 50, activation=tf.nn.relu, name="Layer_1")
-        # Hidden layer, 50 nodes, relu activation
+
+        # Layer 2, 50 nodes, relu activation
         layer_2 = tf.layers.dense(layer_1, 50, activation=tf.nn.relu, name="Layer_2")
+
         # Output layer, limited nodes (number of actions)
         self._tf_logits = tf.layers.dense(layer_2, self._action_count, activation=None, name="Layer_Output")
 
-        # Loss function - how wrong we were
+        # Loss function - how wrong were we
         # Predicted values, actual values
-        loss = tf.losses.mean_squared_error(self._tf_qsa, self._tf_logits)
+        self._loss = tf.losses.mean_squared_error(self._tf_qsa, self._tf_logits)
 
         # Set Loss optimiser process to use Adam process - adaptive moment estimation
-        self._tf_optimise = tf.train.AdamOptimizer().minimize(loss)
+        self._tf_optimise = tf.train.AdamOptimizer().minimize(self._loss)
+
+        # Setup TensorBoard writer - create new folder for instance
+        # Saves a diagram of the graph
+        self._writer = tf.summary.FileWriter("./tensorboard/" + self._timestamp, tf.Session().graph)
 
         # Initialise TF global variables
         self._tf_variable_initializer = tf.global_variables_initializer()
-
-        # Setup TensorBoard writer - create new folder for instance
-        self._writer = tf.summary.FileWriter("./tensorboard/" + self._timestamp)
-
-        # tf.summary.scalar("Loss", tf.losses)
-        # self._write_op = tf.summary.merge_all()
 
     # Input a single state to get a prediction
     # Reshape to ensure data size is numpy array (1 x num_states)
@@ -92,7 +96,9 @@ class RLAgent:
 
     # Update model for given states and Q(s,a) values
     def train_batch(self, session, states, qsas):
+        print("Starting training")
         session.run(self._tf_optimise, feed_dict={self._tf_states: states, self._tf_qsa: qsas})
+        print("Training done")
 
     # Save model to local storage
     def save_model(self, session):
