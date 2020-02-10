@@ -10,11 +10,18 @@ import random
 # Not learnt by RL process
 ############
 
+# Max explore rate
 MAX_EPSILON = 1
+# Min explore rate
 MIN_EPSILON = 0.01
+# Decay rate for exploration
 LAMBDA = 0.00001
+# Max batch size for memory buffer
 BATCH_SIZE = 64
+# Decay rate for future rewards Q(s',a')
 GAMMA = 0.9
+# Timestamp for log output per session
+TIMESTAMP = datetime.utcnow().strftime("%Y%m%d%H%M%S")
 
 
 class RLAgent:
@@ -26,7 +33,7 @@ class RLAgent:
         self._action_count = action_count
         self._batch_size = batch_size
 
-        self._timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        self._timestamp = TIMESTAMP
         self._write_op = None
         self._writer = None
         self._saver = None # tf.train.Saver()
@@ -248,7 +255,7 @@ class GameRunner:
 
     def save_results(self):
         # Save output of max_x and rewards to image file
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        timestamp = TIMESTAMP
         self._make_result_dir(timestamp)
         plt.plot(self._reward_store)
         plt.savefig("./results/%s/rewards.png" % timestamp)
