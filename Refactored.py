@@ -1,11 +1,9 @@
 import tensorflow as tf  # Deep learning library
 import numpy as np  # Handle matrices
 import matplotlib.pyplot as plt
+from datetime import datetime
 import gym
 import random
-
-# Create gym environment - disable random movement
-# env = gym.make("FrozenLake-v0", is_slippery=False)
 
 ############
 # Parameters
@@ -26,13 +24,87 @@ class RLAgent:
         self._action_count = action_count
         self._batch_size = batch_size
 
+        self._timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        self._write_op = None
+        self._writer = None
+        self._saver = None # tf.train.Saver()
+
         self._tf_states = None
+        self._tf_qsa = None
         self._tf_actions = None
         self._tf_output = None
         self._tf_optimise = None
-        self._tf_variable_initialiser = None
+        self._tf_variable_initializer = None
+        self._tf_logits = None
 
+        # Call setup
+        self.create_model()
 
+    def create_model(self):
+
+        # Create TF placeholders for inputs
+        # State data
+        self._tf_states = tf.placeholder(dtype=tf.float32, shape=[None, self._state_count], name="tf_states")
+        # Q(s,a)
+        self._tf_qsa = tf.placeholder(dtype=tf.float32, shape=[None, self._action_count], name="tf_qsa")
+        
+        # Create TF layers
+        # Hidden layer, 50 nodes, relu activation
+        layer_1 = tf.layers.dense(self._tf_states, 50, activation=tf.nn.relu, name="Layer_1")
+        # Hidden layer, 50 nodes, relu activation
+        layer_2 = tf.layers.dense(layer_1, 50, activation=tf.nn.relu, name="Layer_2")
+        # Output layer, limited nodes (number of actions)
+        self._tf_logits = tf.layers.dense(layer_2, self._action_count, activation=None, name="Layer_Output")
+
+        # Loss function - how wrong we were
+        # Predicted values, actual values
+        loss = tf.losses.mean_squared_error(self._tf_qsa, self._tf_logits)
+
+        # Set Loss optimiser process to use Adam process - adaptive moment estimation
+        self._tf_optimise = tf.train.AdamOptimizer().minimize(loss)
+
+        # Initialise TF global variables
+        self._tf_variable_initializer = tf.global_variables_initializer()
+
+        # Setup TensorBoard writer - create new folder for instance
+        self._writer = tf.summary.FileWriter("./tensorboard/" + self._timestamp)
+
+        # tf.summary.scalar("Loss", tf.losses) - TODO
+        # self._write_op = tf.summary.merge_all() - TODO
+
+    # Input a single state to get a prediction
+    # Reshape to ensure data size is numpy array (1 x num_states)
+    def predict_single(self, state, session):
+        return session.run(self._tf_logits, feed_dict={self._tf_states: state.reshape(1, self._state_count)})
+
+    # Predict from a batch
+    def predict_batch(self, states, session):
+        return session.run(self._tf_logits, feed_dict={self._tf_states: states})
+
+    # Update model for given states and Q(s,a) values
+    def train_batch(self, session, states, qsas):
+        session.run(self._tf_optimise, feed_dict={self._tf_states: states, self._tf_qsa: qsas})
+
+    # Save model to local storage
+    def save_model(self, session):
+        save_path = self._saver.save(session, "./models/%s/model.ckpt" % self._timestamp)
+        print("Model saved")
+
+    @property
+    def tf_variable_initializer(self):
+        return self._tf_variable_initializer
+
+    @property
+    def action_count(self):
+        return self._action_count
+
+    @property
+    def batch_size(self):
+        return self._batch_size
+
+    @property
+    def state_count(self):
+        return self._state_count
 
 
 # Stores tuples of (state, action, reward, next_state)
@@ -116,9 +188,9 @@ class GameRunner:
 
     def _choose_action(self, state):
         if random.random() < self._eps:
-            return random.randint(0, self._model.numberOfActions - 1)
+            return random.randint(0, self._model.action_count - 1)
         else:
-            return np.argmax(self._model.predict_one(state, self._sess))
+            return np.argmax(self._model.predict_single(state, self._sess))
 
     def _replay(self):
         # Get a batch from memory
@@ -128,7 +200,7 @@ class GameRunner:
         states = np.array([val[0] for val in batch])
 
         # Draw out next states from batch
-        next_states = np.array([(np.zeros(self._model.numberOfStates)
+        next_states = np.array([(np.zeros(self._model.state_count)
                                  if val[3] is None else val[3]) for val in batch])
 
         # predict Q(s,a) given the batch of states
@@ -138,8 +210,8 @@ class GameRunner:
         q_s_a_d = self._model.predict_batch(next_states, self._sess)
 
         # setup training arrays
-        x = np.zeros((len(batch), self._model.numberOfStates))
-        y = np.zeros((len(batch), self._model.numberOfActions))
+        x = np.zeros((len(batch), self._model.state_count))
+        y = np.zeros((len(batch), self._model.action_count))
 
         for i, b in enumerate(batch):
             state, action, reward, next_state = b[0], b[1], b[2], b[3]
@@ -178,7 +250,7 @@ if __name__ == "__main__":
     mem = Memory(50000)
 
     with tf.Session() as sess:
-        sess.run(model.var_init)
+        sess.run(model.tf_variable_initializer)
         gr = GameRunner(sess, model, env, mem, MAX_EPSILON, MIN_EPSILON,
                         LAMBDA)
         num_episodes = 300
