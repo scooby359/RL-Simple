@@ -22,6 +22,8 @@ BATCH_SIZE = 64
 GAMMA = 0.9
 # Timestamp for log output per session
 TIMESTAMP = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+# Number of episodes to train on
+NUM_EPISODES = 2;
 
 
 class RLAgent:
@@ -82,12 +84,25 @@ class RLAgent:
         # Saves a diagram of the graph
         self._writer = tf.summary.FileWriter("./tensorboard/" + self._timestamp, tf.Session().graph)
 
+        # Summary to record losses
+        tf.summary.scalar("Loss", self._loss)
+
+        # Write op to record all summaries (only one given above)
+        self._write_op = tf.summary.merge_all()
+
         # Initialise TF global variables
         self._tf_variable_initializer = tf.global_variables_initializer()
+
+    def write_summary(self, state, action, qsa, episode):
+        summary = sess.run(self._write_op, feed_dict={self._tf_states: state, self._tf_logits: action, self._tf_qsa: qsa})
+        self._writer.add_summary(summary, episode)
+        self._writer.flush()
 
     # Input a single state to get a prediction
     # Reshape to ensure data size is numpy array (1 x num_states)
     def predict_single(self, state, session):
+        print("Predicting single")
+        print(state)
         return session.run(self._tf_logits, feed_dict={self._tf_states: state.reshape(1, self._state_count)})
 
     # Predict from a batch
@@ -225,8 +240,8 @@ class GameRunner:
         q_s_a_d = self._model.predict_batch(next_states, self._sess)
 
         # setup training arrays
-        x = np.zeros((len(batch), self._model.state_count))
-        y = np.zeros((len(batch), self._model.action_count))
+        state = np.zeros((len(batch), self._model.state_count))
+        q_val = np.zeros((len(batch), self._model.action_count))
 
         for i, b in enumerate(batch):
             state, action, reward, next_state = b[0], b[1], b[2], b[3]
@@ -241,9 +256,9 @@ class GameRunner:
                 current_q[action] = reward
             else:
                 current_q[action] = reward + GAMMA * np.amax(q_s_a_d[i])
-            x[i] = state
-            y[i] = current_q
-        self._model.train_batch(self._sess, x, y)
+            state[i] = state
+            q_val[i] = current_q
+        self._model.train_batch(self._sess, state, q_val)
 
     def _make_result_dir(self, time_stamp):
         from errno import EEXIST
@@ -294,7 +309,7 @@ if __name__ == "__main__":
         sess.run(model.tf_variable_initializer)
         gr = GameRunner(sess, model, env, mem, MAX_EPSILON, MIN_EPSILON,
                         LAMBDA)
-        num_episodes = 2
+        num_episodes = NUM_EPISODES
         cnt = 0
 
         while cnt < num_episodes:
