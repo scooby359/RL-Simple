@@ -5,11 +5,10 @@ from datetime import datetime
 import gym
 import random
 
-############
+#############################
 # Hyper Parameters
 # Not learnt by RL process
-############
-
+#############################
 # Max explore rate
 MAX_EPSILON = 1
 # Min explore rate
@@ -20,10 +19,16 @@ LAMBDA = 0.00001
 BATCH_SIZE = 64
 # Decay rate for future rewards Q(s',a')
 GAMMA = 0.9
+
+#############################
+# Environment Variables
+#############################
 # Timestamp for log output per session
 TIMESTAMP = datetime.utcnow().strftime("%Y%m%d%H%M%S")
 # Number of episodes to train on
-NUM_EPISODES = 2;
+NUM_EPISODES = 500
+# Render game env
+RENDER = False
 
 
 class RLAgent:
@@ -38,7 +43,7 @@ class RLAgent:
         self._timestamp = TIMESTAMP
         self._write_op = None
         self._writer = None
-        self._saver = None # tf.train.Saver() # to save / load models
+        self._saver = None
         self._tb_summary = None
         self._loss = None
         self._tf_loss_ph = None
@@ -59,30 +64,57 @@ class RLAgent:
 
         # Create TF placeholders for inputs
         # State data
-        self._tf_states = tf.placeholder(dtype=tf.float32, shape=[None, self._state_count], name="tf_states")
+        self._tf_states = tf.placeholder(
+            dtype=tf.float32,
+            shape=[None, self._state_count],
+            name="tf_states",
+        )
+
         # Q(s,a)
-        self._tf_qsa = tf.placeholder(dtype=tf.float32, shape=[None, self._action_count], name="tf_qsa")
+        self._tf_qsa = tf.placeholder(
+            dtype=tf.float32,
+            shape=[None, self._action_count],
+            name="tf_qsa",
+        )
         
         # Create TF layers
         # Layer 1, 50 nodes, relu activation
-        layer_1 = tf.layers.dense(self._tf_states, 50, activation=tf.nn.relu, name="Layer_1")
+        layer_1 = tf.layers.dense(
+            self._tf_states,
+            50,
+            activation=tf.nn.relu,
+            name="Layer_1",
+        )
 
         # Layer 2, 50 nodes, relu activation
-        layer_2 = tf.layers.dense(layer_1, 50, activation=tf.nn.relu, name="Layer_2")
+        layer_2 = tf.layers.dense(
+            layer_1,
+            50,
+            activation=tf.nn.relu,
+            name="Layer_2",
+        )
 
         # Output layer, limited nodes (number of actions)
-        self._tf_logits = tf.layers.dense(layer_2, self._action_count, activation=None, name="Layer_Output")
+        self._tf_logits = tf.layers.dense(
+            layer_2,
+            self._action_count,
+            activation=None,
+            name="Layer_Output",
+        )
 
         # Loss function - how wrong were we
         # Predicted values, actual values
-        self._loss = tf.losses.mean_squared_error(self._tf_qsa, self._tf_logits)
+        self._loss = tf.losses.mean_squared_error(
+            self._tf_qsa,
+            self._tf_logits,
+        )
 
-        # Set Loss optimiser process to use Adam process - adaptive moment estimation
+        # Set Loss optimiser process to use Adam process - aims to improve accuracy of predictions
         self._tf_optimise = tf.train.AdamOptimizer().minimize(self._loss)
 
         # Setup TensorBoard writer - create new folder for instance
-        # Saves a diagram of the graph
-        self._writer = tf.summary.FileWriter("./tensorboard/" + self._timestamp, tf.Session().graph)
+        # self._writer = tf.summary.FileWriter("./tensorboard/" + self._timestamp, tf.Session().graph)
+        self._writer = tf.summary.FileWriter("./tensorboard/" + self._timestamp)
 
         # Summary to record losses
         tf.summary.scalar("Loss", self._loss)
@@ -93,32 +125,57 @@ class RLAgent:
         # Initialise TF global variables
         self._tf_variable_initializer = tf.global_variables_initializer()
 
-    def write_summary(self, state, action, qsa, episode):
-        summary = sess.run(self._write_op, feed_dict={self._tf_states: state, self._tf_logits: action, self._tf_qsa: qsa})
+        # Get ref for saving NN model
+        self._saver = tf.train.Saver()
+
+    def write_summary(self, states, qsa, episode):
+        summary = sess.run(
+            self._write_op,
+            feed_dict={
+                self._tf_states: states,
+                self._tf_qsa: qsa
+            }
+        )
         self._writer.add_summary(summary, episode)
         self._writer.flush()
 
-    # Input a single state to get a prediction
+    # Input a single state to get a prediction - used for env action choice
     # Reshape to ensure data size is numpy array (1 x num_states)
+    # Returns arr[3] with predicted q values for move left, do nothing, move right
     def predict_single(self, state, session):
-        print("Predicting single")
-        print(state)
-        return session.run(self._tf_logits, feed_dict={self._tf_states: state.reshape(1, self._state_count)})
+        # Run given state input against logits layer
+        return session.run(
+            self._tf_logits,
+            feed_dict={
+                self._tf_states: state.reshape(1, self._state_count)
+            }
+        )
 
-    # Predict from a batch
+    # Predict from a batch - used by replay
     def predict_batch(self, states, session):
-        return session.run(self._tf_logits, feed_dict={self._tf_states: states})
+        # Run given batch of states against logits layer
+        return session.run(
+            self._tf_logits,
+            feed_dict={
+                self._tf_states: states
+            }
+        )
 
     # Update model for given states and Q(s,a) values
     def train_batch(self, session, states, qsas):
-        print("Starting training")
-        session.run(self._tf_optimise, feed_dict={self._tf_states: states, self._tf_qsa: qsas})
-        print("Training done")
+        # Run given states and QsAs values against optimise layer
+        session.run(
+            self._tf_optimise,
+            feed_dict={
+                self._tf_states: states,
+                self._tf_qsa: qsas
+            }
+        )
 
     # Save model to local storage
-    def save_model(self, session):
-        save_path = self._saver.save(session, "./models/%s/model.ckpt" % self._timestamp)
-        print("Model saved")
+    def save_model(self, sess, path):
+        # Save TF model to given path
+        self._saver.save(sess, path)
 
     @property
     def tf_variable_initializer(self):
@@ -140,24 +197,37 @@ class RLAgent:
 # Stores tuples of (state, action, reward, next_state)
 class Memory:
     def __init__(self, max_memory):
+        # Declare memory variables
         self._max_memory = max_memory
         self._samples = []
 
     def add_sample(self, sample):
+        # Adds sample to end of samples array
         self._samples.append(sample)
+
+        # If exceeded length, remove first from memory
         if len(self._samples) > self._max_memory:
             self._samples.pop(0)
 
     def sample(self, no_samples):
-        if no_samples > len(self._samples):
-            return random.sample(self._samples, len(self._samples))
-        else:
-            return random.sample(self._samples, no_samples)
 
+        # If requested number of samples is greater than size of memory buffer, return all samples in memory
+        if no_samples > len(self._samples):
+            return random.sample(
+                self._samples,
+                len(self._samples)
+            )
+        else:
+            # Else, return batch of given size of randomly selected samples
+            return random.sample(
+                self._samples,
+                no_samples
+            )
 
 class GameRunner:
     def __init__(self, sess, model, env, memory, max_eps, min_eps,
                  decay, render=True):
+        # Set up game runner variables
         self._sess = sess
         self._env = env
         self._model = model
@@ -168,19 +238,35 @@ class GameRunner:
         self._decay = decay
         self._eps = self._max_eps
         self._steps = 0
+        self._episode = 0
         self._reward_store = []
         self._max_x_store = []
 
     def run(self):
+        # Increment episode counter
+        self._episode += 1
+
+        # Reset environment and get initial state
         state = self._env.reset()
+
+        # Init total reward
         tot_reward = 0
+
+        # Init max x to minimum
         max_x = -100
+
         while True:
+            # Display environment if needed
             if self._render:
                 self._env.render()
 
+            # Choose on action to take based on current state
             action = self._choose_action(state)
+
+            # Take action and get output values
             next_state, reward, done, info = self._env.step(action)
+
+            # Manually adjust rewards based on x value of car
             if next_state[0] >= -0.1:
                 reward += 1
             elif next_state[0] >= 0.1:
@@ -189,18 +275,28 @@ class GameRunner:
                 reward += 20
             elif next_state[0] >= 0.5:
                 reward += 100
+                print("Reached top of hill")
 
+            # Track highest x achieved
             if next_state[0] > max_x:
                 max_x = next_state[0]
-            # is the game complete? If so, set the next state to
-            # None for storage sake
+
+            # If game finished, set the next state to None for storage sake
             if done:
                 next_state = None
 
-            self._memory.add_sample((state, action, reward, next_state))
+            # Add step values to memory bank
+            self._memory.add_sample((
+                state,
+                action,
+                reward,
+                next_state
+            ))
+
+            # Relearn from memory
             self._replay()
 
-            # exponentially decay the eps value
+            # Exponentially decay the eps value
             self._steps += 1
             self._eps = MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * np.exp(-LAMBDA * self._steps)
 
@@ -208,7 +304,7 @@ class GameRunner:
             state = next_state
             tot_reward += reward
 
-            # if the game is done, break the loop
+            # if the game is done, store episode results and break loop
             if done:
                 self._reward_store.append(tot_reward)
                 self._max_x_store.append(max_x)
@@ -217,10 +313,13 @@ class GameRunner:
         print("Step {}, Total reward: {}, Eps: {}".format(self._steps, tot_reward, self._eps))
 
     def _choose_action(self, state):
+        # If random number < exploit threshold, choose a random action
         if random.random() < self._eps:
             return random.randint(0, self._model.action_count - 1)
         else:
-            return np.argmax(self._model.predict_single(state, self._sess))
+            # Else, get predicted action from RL agent
+            predictions = self._model.predict_single(state, self._sess)
+            return np.argmax(predictions)
 
     def _replay(self):
         # Get a batch from memory
@@ -240,8 +339,14 @@ class GameRunner:
         q_s_a_d = self._model.predict_batch(next_states, self._sess)
 
         # setup training arrays
-        state = np.zeros((len(batch), self._model.state_count))
-        q_val = np.zeros((len(batch), self._model.action_count))
+        states = np.zeros(
+            (len(batch),
+             self._model.state_count)
+        )
+        q_val = np.zeros(
+            (len(batch),
+             self._model.action_count)
+        )
 
         for i, b in enumerate(batch):
             state, action, reward, next_state = b[0], b[1], b[2], b[3]
@@ -256,19 +361,23 @@ class GameRunner:
                 current_q[action] = reward
             else:
                 current_q[action] = reward + GAMMA * np.amax(q_s_a_d[i])
-            state[i] = state
+            states[i] = state
             q_val[i] = current_q
-        self._model.train_batch(self._sess, state, q_val)
+        self._model.train_batch(self._sess, states, q_val)
+        self._model.write_summary(states, q_val, self._episode)
 
     def _make_result_dir(self, time_stamp):
         from errno import EEXIST
         from os import makedirs, path
 
+        # Set path to create folder
         path = "./results/%s/" % time_stamp
 
         try:
+            # Make folder
             makedirs(path)
         except OSError as exc:
+            # If folder exists, ignore error
             if exc.errno == EEXIST and path.isdir(path):
                 pass
             else:
@@ -278,11 +387,20 @@ class GameRunner:
         # Save output of max_x and rewards to image file
         timestamp = TIMESTAMP
         self._make_result_dir(timestamp)
+
+        # Save NN model
+        self._model.save_model(sess, "./results/%s/model.ckpt" % timestamp)
+
+        # Produce graph of results
+        # Graph of episode results
         plt.plot(self._reward_store)
+        plt.suptitle("REWARDS")
         plt.savefig("./results/%s/rewards.png" % timestamp)
         plt.show()
         plt.close("all")
+        # Graph of max X value
         plt.plot(self._max_x_store)
+        plt.suptitle("MAX X")
         plt.savefig("./results/%s/max_x.png" % timestamp)
         plt.show()
 
@@ -296,26 +414,45 @@ class GameRunner:
 
 
 if __name__ == "__main__":
+    # Select and load test environment
     env_name = 'MountainCar-v0'
     env = gym.make(env_name)
 
+    # Get number of states and actions from environment
     numberOfStates = env.env.observation_space.shape[0]
     numberOfActions = env.env.action_space.n
 
+    # Instantiate RLAgent and memory buffer
     model = RLAgent(numberOfStates, numberOfActions, BATCH_SIZE)
     mem = Memory(50000)
 
+    # Scoped TF Session for automated clean up when out of scope
     with tf.Session() as sess:
+        # Initialise variables
         sess.run(model.tf_variable_initializer)
-        gr = GameRunner(sess, model, env, mem, MAX_EPSILON, MIN_EPSILON,
-                        LAMBDA)
+        # Initialise game runner
+        gr = GameRunner(
+            sess,
+            model,
+            env,
+            mem,
+            MAX_EPSILON,
+            MIN_EPSILON,
+            LAMBDA,
+            RENDER
+        )
         num_episodes = NUM_EPISODES
-        cnt = 0
+        episode_count = 0
 
-        while cnt < num_episodes:
-            if cnt % 10 == 0:
-                print('Episode {} of {}'.format(cnt + 1, num_episodes))
+        # Loop through training for max number of episodes
+        while episode_count < num_episodes:
+            # Print interval log
+            if episode_count % 10 == 0:
+                print('Episode {} of {}'.format(episode_count + 1, num_episodes))
+
+            # Run game runner
             gr.run()
-            cnt += 1
+            episode_count += 1
 
+        # Save TF model, and result graphs
         gr.save_results()
