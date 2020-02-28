@@ -18,7 +18,7 @@ LAMBDA = 0.00001
 # Max batch size for memory buffer
 BATCH_SIZE = 64
 # Decay rate for future rewards Q(s',a')
-GAMMA = 0.9
+GAMMA = 0.9 # Default 0.9
 
 #############################
 # Environment Variables
@@ -112,32 +112,24 @@ class RLAgent:
         # Set Loss optimiser process to use Adam process - aims to improve accuracy of predictions
         self._tf_optimise = tf.train.AdamOptimizer().minimize(self._loss)
 
+        ##################################################
+        # Tensorboard logging not working, so temp removed
+        ##################################################
         # Setup TensorBoard writer - create new folder for instance
         # self._writer = tf.summary.FileWriter("./tensorboard/" + self._timestamp, tf.Session().graph)
-        self._writer = tf.summary.FileWriter("./tensorboard/" + self._timestamp)
+        # self._writer = tf.summary.FileWriter("./tensorboard/" + self._timestamp)
 
         # Summary to record losses
-        tf.summary.scalar("Loss", self._loss)
+        # self._tf_loss_summary = tf.summary.scalar("Loss", self._loss)
 
         # Write op to record all summaries (only one given above)
-        self._write_op = tf.summary.merge_all()
+        # self._write_op = tf.summary.merge_all()
 
         # Initialise TF global variables
         self._tf_variable_initializer = tf.global_variables_initializer()
 
         # Get ref for saving NN model
         self._saver = tf.train.Saver()
-
-    def write_summary(self, states, qsa, episode):
-        summary = sess.run(
-            self._write_op,
-            feed_dict={
-                self._tf_states: states,
-                self._tf_qsa: qsa
-            }
-        )
-        self._writer.add_summary(summary, episode)
-        self._writer.flush()
 
     # Input a single state to get a prediction - used for env action choice
     # Reshape to ensure data size is numpy array (1 x num_states)
@@ -162,13 +154,13 @@ class RLAgent:
         )
 
     # Update model for given states and Q(s,a) values
-    def train_batch(self, session, states, qsas):
+    def train_batch(self, session, states, qsa):
         # Run given states and QsAs values against optimise layer
         session.run(
             self._tf_optimise,
             feed_dict={
                 self._tf_states: states,
-                self._tf_qsa: qsas
+                self._tf_qsa: qsa
             }
         )
 
@@ -339,14 +331,8 @@ class GameRunner:
         q_s_a_d = self._model.predict_batch(next_states, self._sess)
 
         # setup training arrays
-        states = np.zeros(
-            (len(batch),
-             self._model.state_count)
-        )
-        q_val = np.zeros(
-            (len(batch),
-             self._model.action_count)
-        )
+        state_x = np.zeros((len(batch),self._model.state_count))
+        q_value_y = np.zeros((len(batch),self._model.action_count))
 
         for i, b in enumerate(batch):
             state, action, reward, next_state = b[0], b[1], b[2], b[3]
@@ -361,10 +347,9 @@ class GameRunner:
                 current_q[action] = reward
             else:
                 current_q[action] = reward + GAMMA * np.amax(q_s_a_d[i])
-            states[i] = state
-            q_val[i] = current_q
-        self._model.train_batch(self._sess, states, q_val)
-        self._model.write_summary(states, q_val, self._episode)
+            state_x[i] = state
+            q_value_y[i] = current_q
+        self._model.train_batch(self._sess, state_x, q_value_y)
 
     def _make_result_dir(self, time_stamp):
         from errno import EEXIST
