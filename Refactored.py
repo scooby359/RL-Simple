@@ -14,11 +14,11 @@ MAX_EPSILON = 1
 # Min explore rate
 MIN_EPSILON = 0.01
 # Decay rate for exploration
-LAMBDA = 0.00001
+LAMBDA = 0.00005  # Default 0.00001
 # Max batch size for memory buffer
 BATCH_SIZE = 64
 # Decay rate for future rewards Q(s',a')
-GAMMA = 0.9 # Default 0.9
+GAMMA = 0.9  # Default 0.9
 
 #############################
 # Environment Variables
@@ -26,7 +26,7 @@ GAMMA = 0.9 # Default 0.9
 # Timestamp for log output per session
 TIMESTAMP = datetime.utcnow().strftime("%Y%m%d%H%M%S")
 # Number of episodes to train on
-NUM_EPISODES = 500
+NUM_EPISODES = 500  # Default 500
 # Render game env
 RENDER = False
 
@@ -34,7 +34,6 @@ RENDER = False
 class RLAgent:
     # Constructor
     def __init__(self, state_count, action_count, batch_size):
-
         # Declare local variables
         self._state_count = state_count
         self._action_count = action_count
@@ -61,7 +60,6 @@ class RLAgent:
         self.create_model()
 
     def create_model(self):
-
         # Create TF placeholders for inputs
         # State data
         self._tf_states = tf.placeholder(
@@ -76,7 +74,7 @@ class RLAgent:
             shape=[None, self._action_count],
             name="tf_qsa",
         )
-        
+
         # Create TF layers
         # Layer 1, 50 nodes, relu activation
         layer_1 = tf.layers.dense(
@@ -216,6 +214,7 @@ class Memory:
                 no_samples
             )
 
+
 class GameRunner:
     def __init__(self, sess, model, env, memory, max_eps, min_eps,
                  decay, render=True):
@@ -331,8 +330,8 @@ class GameRunner:
         q_s_a_d = self._model.predict_batch(next_states, self._sess)
 
         # setup training arrays
-        state_x = np.zeros((len(batch),self._model.state_count))
-        q_value_y = np.zeros((len(batch),self._model.action_count))
+        state_x = np.zeros((len(batch), self._model.state_count))
+        q_value_y = np.zeros((len(batch), self._model.action_count))
 
         for i, b in enumerate(batch):
             state, action, reward, next_state = b[0], b[1], b[2], b[3]
@@ -376,7 +375,31 @@ class GameRunner:
         # Save NN model
         self._model.save_model(sess, "./results/%s/model.ckpt" % timestamp)
 
-        # Produce graph of results
+
+        print('%.2f, %.2f, %.6f, %.0f, %.2f' % (MAX_EPSILON, MIN_EPSILON, LAMBDA, BATCH_SIZE, GAMMA))
+
+        # Record hyper params
+        with open('./results/%s/HYPERPARAMS.TXT' % timestamp, 'w') as f:
+            f.write('# Max explore rate\nMAX_EPSILON = %.2f\n' % MAX_EPSILON)
+            f.write('# Min explore rate\nMIN_EPSILON = %.2f\n' % MIN_EPSILON)
+            f.write('# Decay rate for exploration\nLAMBDA = %.6f\n' % LAMBDA)
+            f.write('# Max batch size for memory buffer\nBATCH_SIZE = %.0f\n' % BATCH_SIZE)
+            f.write('# Decay rate for future rewards Q(s,a)\nGAMMA = %.2f\n' % GAMMA)
+
+        # Record rewards to CSV
+        i = 0
+        with open('./results/%s/rewards.csv' % timestamp, 'w') as f:
+            for item in self._reward_store:
+                f.write("%s, %s\n" % (i, item))
+                i = i + 1
+
+        # Record max_x to CSV
+        i = 0
+        with open('./results/%s/max_x.csv' % timestamp, 'w') as f:
+            for item in self.max_x_store:
+                f.write("%s, %s\n" % (i, item))
+                i = i + 1
+
         # Graph of episode results
         plt.plot(self._reward_store)
         plt.suptitle("REWARDS")
