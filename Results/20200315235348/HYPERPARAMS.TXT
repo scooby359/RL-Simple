@@ -1,0 +1,6 @@
+# Max explore rate
+MAX_EPSILON = 1.00# Min explore rate
+MIN_EPSILON = 0.01# Decay rate for exploration
+LAMBDA = 0.000050# Max batch size for memory buffer
+BATCH_SIZE = 64# Decay rate for future rewards Q(s,a)
+GAMMA = 0.90

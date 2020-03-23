@@ -1,3 +1,5 @@
+from collections import deque
+
 import tensorflow as tf  # Deep learning library
 import numpy as np  # Handle matrices
 import matplotlib.pyplot as plt
@@ -14,11 +16,13 @@ MAX_EPSILON = 1
 # Min explore rate
 MIN_EPSILON = 0.01
 # Decay rate for exploration
-LAMBDA = 0.00005  # Default 0.00001
+LAMBDA = 0.00002  # Default 0.00001
 # Max batch size for memory buffer
 BATCH_SIZE = 64
 # Decay rate for future rewards Q(s',a')
 GAMMA = 0.9  # Default 0.9
+# Stack size
+STACK_SIZE = 4
 
 #############################
 # Environment Variables
@@ -28,14 +32,16 @@ TIMESTAMP = datetime.utcnow().strftime("%Y%m%d%H%M%S")
 # Number of episodes to train on
 NUM_EPISODES = 500  # Default 500
 # Render game env
-RENDER = False
+RENDER = True
 
 
 class RLAgent:
     # Constructor
     def __init__(self, state_count, action_count, batch_size):
         # Declare local variables
-        self._state_count = state_count
+        self._state_count = state_count * STACK_SIZE
+        print(self._state_count)
+
         self._action_count = action_count
         self._batch_size = batch_size
 
@@ -79,7 +85,7 @@ class RLAgent:
         # Layer 1, 50 nodes, relu activation
         layer_1 = tf.layers.dense(
             self._tf_states,
-            50,
+            50,  # default 50
             activation=tf.nn.relu,
             name="Layer_1",
         )
@@ -87,7 +93,7 @@ class RLAgent:
         # Layer 2, 50 nodes, relu activation
         layer_2 = tf.layers.dense(
             layer_1,
-            50,
+            50,  # default 50
             activation=tf.nn.relu,
             name="Layer_2",
         )
@@ -232,13 +238,17 @@ class GameRunner:
         self._episode = 0
         self._reward_store = []
         self._max_x_store = []
+        self._stack = deque([np.zeros((2), dtype=np.int) for i in range(4)], maxlen=4)
 
     def run(self):
         # Increment episode counter
         self._episode += 1
 
         # Reset environment and get initial state
-        state = self._env.reset()
+        initial_state = self._env.reset()
+
+        # Initialise stack for episode
+        stack = self._stack_frames(initial_state, new_episode=True)
 
         # Init total reward
         tot_reward = 0
@@ -252,7 +262,7 @@ class GameRunner:
                 self._env.render()
 
             # Choose on action to take based on current state
-            action = self._choose_action(state)
+            action = self._choose_action(stack)
 
             # Take action and get output values
             next_state, reward, done, info = self._env.step(action)
@@ -275,10 +285,12 @@ class GameRunner:
             # If game finished, set the next state to None for storage sake
             if done:
                 next_state = None
+            else:
+                next_state = self._stack_frames(next_state)
 
             # Add step values to memory bank
             self._memory.add_sample((
-                state,
+                stack,
                 action,
                 reward,
                 next_state
@@ -292,7 +304,7 @@ class GameRunner:
             self._eps = MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * np.exp(-LAMBDA * self._steps)
 
             # move the agent to the next state and accumulate the reward
-            state = next_state
+            stack = next_state
             tot_reward += reward
 
             # if the game is done, store episode results and break loop
@@ -311,6 +323,28 @@ class GameRunner:
             # Else, get predicted action from RL agent
             predictions = self._model.predict_single(state, self._sess)
             return np.argmax(predictions)
+
+    def _stack_frames(self, state, new_episode=False):
+
+        if new_episode:
+            # Clear stack
+            self._stack = deque([np.zeros((2), dtype=np.int) for i in range(STACK_SIZE)], maxlen=STACK_SIZE)
+            # Reset with four copies of state
+            self._stack.append(state)
+            self._stack.append(state)
+            self._stack.append(state)
+            self._stack.append(state)
+
+        # Not new episode - add state to stack
+        else:
+            self._stack.append(state)
+
+        # Create Numpy 2D array
+        stack = np.array(self._stack)
+        # Flatten into 1D array
+        stack = stack.flatten()
+
+        return stack
 
     def _replay(self):
         # Get a batch from memory
@@ -375,9 +409,6 @@ class GameRunner:
         # Save NN model
         self._model.save_model(sess, "./results/%s/model.ckpt" % timestamp)
 
-
-        print('%.2f, %.2f, %.6f, %.0f, %.2f' % (MAX_EPSILON, MIN_EPSILON, LAMBDA, BATCH_SIZE, GAMMA))
-
         # Record hyper params
         with open('./results/%s/HYPERPARAMS.TXT' % timestamp, 'w') as f:
             f.write('# Max explore rate\nMAX_EPSILON = %.2f\n' % MAX_EPSILON)
@@ -391,14 +422,14 @@ class GameRunner:
         with open('./results/%s/rewards.csv' % timestamp, 'w') as f:
             for item in self._reward_store:
                 f.write("%s, %s\n" % (i, item))
-                i = i + 1
+                i += 1
 
         # Record max_x to CSV
         i = 0
         with open('./results/%s/max_x.csv' % timestamp, 'w') as f:
             for item in self.max_x_store:
                 f.write("%s, %s\n" % (i, item))
-                i = i + 1
+                i += 1
 
         # Graph of episode results
         plt.plot(self._reward_store)
@@ -406,6 +437,7 @@ class GameRunner:
         plt.savefig("./results/%s/rewards.png" % timestamp)
         plt.show()
         plt.close("all")
+
         # Graph of max X value
         plt.plot(self._max_x_store)
         plt.suptitle("MAX X")
