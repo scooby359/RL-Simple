@@ -21,31 +21,29 @@ LAMBDA = 0.00002  # Default 0.00001
 BATCH_SIZE = 64
 # Decay rate for future rewards Q(s',a')
 GAMMA = 0.9  # Default 0.9
-# Stack size
-STACK_SIZE = 4
 
 #############################
 # Environment Variables
 #############################
+# Stack size
+STACK_SIZE = 4
 # Timestamp for log output per session
 TIMESTAMP = datetime.utcnow().strftime("%Y%m%d%H%M%S")
 # Number of episodes to train on
-NUM_EPISODES = 500  # Default 500
+NUM_EPISODES = 1  # Default 500
 # Render game env
 RENDER = True
 
 
 class RLAgent:
     # Constructor
-    def __init__(self, state_count, action_count, batch_size):
+    def __init__(self, state_count, action_count, batch_size, stack_size, time_stamp):
         # Declare local variables
-        self._state_count = state_count * STACK_SIZE
-        print(self._state_count)
-
+        self._state_count = state_count * stack_size
         self._action_count = action_count
         self._batch_size = batch_size
 
-        self._timestamp = TIMESTAMP
+        self._timestamp = time_stamp
         self._write_op = None
         self._writer = None
         self._saver = None
@@ -222,23 +220,26 @@ class Memory:
 
 
 class GameRunner:
-    def __init__(self, sess, model, env, memory, max_eps, min_eps,
-                 decay, render=True):
+    def __init__(self, sess, model, env, memory, number_of_states, numberOfActions, stack_size, max_eps, min_eps,
+                 lambda_, render=True):
         # Set up game runner variables
         self._sess = sess
         self._env = env
         self._model = model
         self._memory = memory
+        self._number_of_states = number_of_states
+        self._number_of_actions = numberOfActions
+        self._stack_size = stack_size
         self._render = render
         self._max_eps = max_eps
         self._min_eps = min_eps
-        self._decay = decay
+        self._lambda = lambda_
         self._eps = self._max_eps
         self._steps = 0
         self._episode = 0
         self._reward_store = []
         self._max_x_store = []
-        self._stack = deque([np.zeros((2), dtype=np.int) for i in range(4)], maxlen=4)
+        self._stack = deque([np.zeros((2), dtype=np.int) for i in range(stack_size)], maxlen=stack_size)
 
     def run(self):
         # Increment episode counter
@@ -301,7 +302,7 @@ class GameRunner:
 
             # Exponentially decay the eps value
             self._steps += 1
-            self._eps = MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * np.exp(-LAMBDA * self._steps)
+            self._eps = self._min_eps + (self._max_eps - self._min_eps) * np.exp(-self._lambda * self._steps)
 
             # move the agent to the next state and accumulate the reward
             stack = next_state
@@ -329,11 +330,10 @@ class GameRunner:
         if new_episode:
             # Clear stack
             self._stack = deque([np.zeros((2), dtype=np.int) for i in range(STACK_SIZE)], maxlen=STACK_SIZE)
-            # Reset with four copies of state
-            self._stack.append(state)
-            self._stack.append(state)
-            self._stack.append(state)
-            self._stack.append(state)
+
+            # Reset with copies of state
+            for i in range (STACK_SIZE):
+                self._stack.append(state)
 
         # Not new episode - add state to stack
         else:
@@ -416,6 +416,8 @@ class GameRunner:
             f.write('# Decay rate for exploration\nLAMBDA = %.6f\n' % LAMBDA)
             f.write('# Max batch size for memory buffer\nBATCH_SIZE = %.0f\n' % BATCH_SIZE)
             f.write('# Decay rate for future rewards Q(s,a)\nGAMMA = %.2f\n' % GAMMA)
+            f.write('# TF state size\n tf.state_size = %.0f\n' % (self._stack_size * self._number_of_states))
+            f.write('# TF action count\n tf.action_count = %.0f\n' % self._number_of_actions)
 
         # Record rewards to CSV
         i = 0
@@ -462,8 +464,10 @@ if __name__ == "__main__":
     numberOfStates = env.env.observation_space.shape[0]
     numberOfActions = env.env.action_space.n
 
+    print("Number of actions: ", numberOfActions)
+
     # Instantiate RLAgent and memory buffer
-    model = RLAgent(numberOfStates, numberOfActions, BATCH_SIZE)
+    model = RLAgent(numberOfStates, numberOfActions, BATCH_SIZE, STACK_SIZE, TIMESTAMP)
     mem = Memory(50000)
 
     # Scoped TF Session for automated clean up when out of scope
@@ -476,10 +480,13 @@ if __name__ == "__main__":
             model,
             env,
             mem,
+            numberOfStates,
+            numberOfActions,
+            STACK_SIZE,
             MAX_EPSILON,
             MIN_EPSILON,
             LAMBDA,
-            RENDER
+            RENDER,
         )
         num_episodes = NUM_EPISODES
         episode_count = 0
