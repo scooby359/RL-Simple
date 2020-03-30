@@ -29,11 +29,11 @@ NODES = 50
 # Max memory buffer size - default 50000
 MAX_MEMORY = 50000
 # Stack size - default 4
-STACK_SIZE = 10
+STACK_SIZE = 4
 # Timestamp for log output per session
-TIMESTAMP = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+TIMESTAMP = datetime.utcnow().strftime('%Y%m%d%H%M%S')
 # Folder suffix if needed
-SUFFIX = "_STACK_10"
+SUFFIX = ''
 # Number of episodes to train on -  default 500
 NUM_EPISODES = 500
 # Number of live episodes to test - default 20
@@ -76,14 +76,14 @@ class RLAgent:
         self._tf_states = tf.placeholder(
             dtype=tf.float32,
             shape=[None, self._state_count],
-            name="tf_states",
+            name='tf_states',
         )
 
         # Q(s,a)
         self._tf_qsa = tf.placeholder(
             dtype=tf.float32,
             shape=[None, self._action_count],
-            name="tf_qsa",
+            name='tf_qsa',
         )
 
         # Create TF layers
@@ -92,7 +92,7 @@ class RLAgent:
             self._tf_states,
             NODES,
             activation=tf.nn.relu,
-            name="Layer_1",
+            name='Layer_1',
         )
 
         # Layer 2, 50 nodes, relu activation
@@ -100,7 +100,7 @@ class RLAgent:
             layer_1,
             NODES,
             activation=tf.nn.relu,
-            name="Layer_2",
+            name='Layer_2',
         )
 
         # Output layer, limited nodes (number of actions)
@@ -108,7 +108,7 @@ class RLAgent:
             layer_2,
             self._action_count,
             activation=None,
-            name="Layer_Output",
+            name='Layer_Output',
         )
 
         # Loss function - how wrong were we
@@ -218,7 +218,7 @@ def _make_result_dir(time_stamp):
     from os import makedirs
 
     # Set path to create folder
-    path = "./results/%s/" % time_stamp
+    path = './results/%s/' % time_stamp
 
     try:
         # Make folder
@@ -333,7 +333,7 @@ class GameRunner:
                 self._max_x_store.append(max_x)
                 break
 
-        print("Step {}, Total reward: {}, Eps: {}".format(self._steps, tot_reward, self._eps))
+        print('Step {}, Total reward: {}, Eps: {}'.format(self._steps, tot_reward, self._eps))
 
     def _choose_action(self, state, training):
         # If random number < exploit threshold, choose a random action
@@ -416,7 +416,7 @@ class GameRunner:
         live = '' if training else 'LIVE_'
 
         # Save TF model
-        self._model.save_model(sess, "./results/%s/model.ckpt" % timestamp)
+        self._model.save_model(sess, './results/%s/model.ckpt' % timestamp)
 
         # Record session params
         with open('./results/%s/HYPERPARAMS.TXT' % timestamp, 'w') as f:
@@ -433,28 +433,30 @@ class GameRunner:
 
         # Record rewards to CSV
         i = 0
-        with open("./results/%s/%srewards.csv" % (timestamp, live), 'w') as f:
+        with open('./results/%s/%srewards.csv' % (timestamp, live), 'w') as f:
             for item in self._reward_store:
-                f.write("%s, %s\n" % (i, item))
+                f.write('%s, %s\n' % (i, item))
                 i += 1
 
         # Record max_x to CSV
         i = 0
         with open('./results/%s/%smax_x.csv' % (timestamp, live), 'w') as f:
             for item in self._max_x_store:
-                f.write("%s, %s\n" % (i, item))
+                f.write('%s, %s\n' % (i, item))
                 i += 1
 
         # Graph of episode results
         plt.plot(self._reward_store)
-        plt.suptitle("REWARDS")
-        plt.savefig("./results/%s/%srewards.png" % (timestamp, live))
-        plt.close("all")
+        plt.suptitle('REWARDS')
+        plt.savefig('./results/%s/%srewards.png' % (timestamp, live))
+        plt.close('all')
 
         # Graph of max X value
         plt.plot(self._max_x_store)
-        plt.suptitle("MAX X")
-        plt.savefig("./results/%s/%smax_x.png" % (timestamp, live))
+        plt.suptitle('MAX X')
+        plt.savefig('./results/%s/%smax_x.png' % (timestamp, live))
+        plt.close('all')
+
 
     @property
     def reward_store(self):

@@ -17,9 +17,9 @@ NUM_EPISODES = 20
 # Early instances had single frame input so may be val 1
 STACK_SIZE = 1
 # Render game environment
-RENDER = True
+RENDER = False
 # Folder to read from e.g. "./results/20200323135024"
-PATH = "./results/NODE_TEST/LAMBDA_00002_50_NODES"
+PATH = "./results/20200315220908"
 # Items in TF array - 2 vars / 2 vars * 4 frames
 STATE_COUNT = 2 * STACK_SIZE
 # Number of possible actions - need to verify from training
@@ -163,7 +163,7 @@ class TestRunner:
 
         while True:
             # Display environment if needed
-            if self._render:
+            if RENDER:
                 self._env.render()
 
             # Choose an action using the RL agent
@@ -213,6 +213,7 @@ class TestRunner:
             # Select a random action
             return random.randint(0, ACTION_COUNT - 1)
         else:
+            print("USED TF - FAIL")
             # Get prediction from RL agent and return highest value
             predictions = self._model.predict_single(state, self._sess)
             return np.argmax(predictions)
