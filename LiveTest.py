@@ -19,12 +19,17 @@ STACK_SIZE = 1
 # Render game environment
 RENDER = True
 # Folder to read from e.g. "./results/20200323135024"
-# PATH = "./results/20200323135024"
-PATH = "./results/LAMBDA_TEST/v2/LAMBDA_00010"
+PATH = "./results/NODE_TEST/LAMBDA_00002_50_NODES"
 # Items in TF array - 2 vars / 2 vars * 4 frames
 STATE_COUNT = 2 * STACK_SIZE
 # Number of possible actions - need to verify from training
 ACTION_COUNT = 3
+# Nodes for TF - default 50
+NODES = 50
+# Select all actions at random - don't use TF
+# For base case comparison against trained models
+# For ease, will still need valid TF model to be populated
+USE_RANDOM = True
 
 print("Running LIVE TEST")
 
@@ -67,7 +72,7 @@ class RLAgent:
         # Layer 1, 50 nodes, relu activation
         layer_1 = tf.layers.dense(
             self._tf_states,
-            50,  # default 50
+            NODES,
             activation=tf.nn.relu,
             name="Layer_1",
         )
@@ -75,7 +80,7 @@ class RLAgent:
         # Layer 2, 50 nodes, relu activation
         layer_2 = tf.layers.dense(
             layer_1,
-            50,  # default 50
+            NODES,
             activation=tf.nn.relu,
             name="Layer_2",
         )
@@ -203,9 +208,14 @@ class TestRunner:
                 break
 
     def _choose_action(self, state):
-        # Get prediction from RL agent and return highest value
-        predictions = self._model.predict_single(state, self._sess)
-        return np.argmax(predictions)
+
+        if USE_RANDOM:
+            # Select a random action
+            return random.randint(0, ACTION_COUNT - 1)
+        else:
+            # Get prediction from RL agent and return highest value
+            predictions = self._model.predict_single(state, self._sess)
+            return np.argmax(predictions)
 
     def _stack_frames(self, state, new_episode=False):
         if new_episode:
