@@ -1,0 +1,20 @@
+# Max explore rate
+MAX_EPSILON = 1.00
+# Min explore rate
+MIN_EPSILON = 0.01
+# Decay rate for exploration
+LAMBDA = 0.000010
+# Max batch size for memory buffer
+BATCH_SIZE = 64
+# Decay rate for future rewards Q(s,a)
+GAMMA = 0.90
+# Nodes in TF layers 
+ NODES = 50
+# Stack size
+ STACK_SIZE = 1
+# Number of training episodes
+ NUM_EPISODES = 5000
+# TF state size
+ tf.state_size = 2
+# TF action count
+ tf.action_count = 3
