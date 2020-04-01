@@ -11,16 +11,16 @@ import random
 # Hyper Parameters
 # Not learnt by RL process
 #############################
-# Max explore rate
+# Max explore rate - default 1
 MAX_EPSILON = 1
-# Min explore rate
+# Min explore rate - default 0.01
 MIN_EPSILON = 0.01
 # Decay rate for exploration
 LAMBDA = 0.00001  # Default 0.00001
-# Max batch size for memory buffer
+# Max batch size for memory buffer - default 64
 BATCH_SIZE = 64
-# Decay rate for future rewards Q(s',a')
-GAMMA = 0.9  # Default 0.9
+# Decay rate for future rewards Q(s',a') - default 0.9
+GAMMA = 0.9
 # Nodes in a layer of TF - default 50
 NODES = 50
 #############################
@@ -28,14 +28,14 @@ NODES = 50
 #############################
 # Max memory buffer size - default 50000
 MAX_MEMORY = 50000
-# Stack size - default 4
-STACK_SIZE = 4
+# Stack size - default 1
+STACK_SIZE = 1
 # Timestamp for log output per session
 TIMESTAMP = datetime.utcnow().strftime('%Y%m%d%H%M%S')
 # Folder suffix if needed
-SUFFIX = ''
+SUFFIX = '_EPISODES_5000'
 # Number of episodes to train on -  default 500
-NUM_EPISODES = 500
+NUM_EPISODES = 5000
 # Number of live episodes to test - default 20
 LIVE_EPISODES = 20
 # Render game env
@@ -333,7 +333,7 @@ class GameRunner:
                 self._max_x_store.append(max_x)
                 break
 
-        print('Step {}, Total reward: {}, Eps: {}'.format(self._steps, tot_reward, self._eps))
+        # print('Step {}, Total reward: {}, Eps: {}'.format(self._steps, tot_reward, self._eps))
 
     def _choose_action(self, state, training):
         # If random number < exploit threshold, choose a random action
@@ -432,6 +432,11 @@ class GameRunner:
             f.write('# TF action count\n tf.action_count = %.0f\n' % self._number_of_actions)
 
         # Record rewards to CSV
+        with open('./results/%s/LIVE_RESULTS.csv' % timestamp, 'w') as f:
+            f.write('EPISODE, MAX_X, MAX_SCORE\n')
+            for j in range(20):
+                f.write('%s, %s, %s\n' % (j, self._max_x_store[j], self._reward_store[j]))
+
         i = 0
         with open('./results/%s/%srewards.csv' % (timestamp, live), 'w') as f:
             for item in self._reward_store:
