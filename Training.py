@@ -165,18 +165,22 @@ class RLAgent:
         # Save TF model to given path
         self._saver.save(sess, path)
 
+    # Public accessor
     @property
     def tf_variable_initializer(self):
         return self._tf_variable_initializer
 
+    # Public accessor
     @property
     def action_count(self):
         return self._action_count
 
+    # Public accessor
     @property
     def batch_size(self):
         return self._batch_size
 
+    # Public accessor
     @property
     def state_count(self):
         return self._state_count
@@ -437,36 +441,24 @@ class GameRunner:
             for j in range(20):
                 f.write('%s, %s, %s\n' % (j, self._max_x_store[j], self._reward_store[j]))
 
-        i = 0
-        with open('./results/%s/%srewards.csv' % (timestamp, live), 'w') as f:
-            for item in self._reward_store:
-                f.write('%s, %s\n' % (i, item))
-                i += 1
-
-        # Record max_x to CSV
-        i = 0
-        with open('./results/%s/%smax_x.csv' % (timestamp, live), 'w') as f:
-            for item in self._max_x_store:
-                f.write('%s, %s\n' % (i, item))
-                i += 1
-
-        # Graph of episode results
+        # Create graph of episode results
         plt.plot(self._reward_store)
         plt.suptitle('REWARDS')
         plt.savefig('./results/%s/%srewards.png' % (timestamp, live))
         plt.close('all')
 
-        # Graph of max X value
+        # Create graph of max X value
         plt.plot(self._max_x_store)
         plt.suptitle('MAX X')
         plt.savefig('./results/%s/%smax_x.png' % (timestamp, live))
         plt.close('all')
 
-
+    # Public accessor
     @property
     def reward_store(self):
         return self._reward_store
 
+    # Public accessor
     @property
     def max_x_store(self):
         return self._max_x_store

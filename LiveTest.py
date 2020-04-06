@@ -3,14 +3,18 @@ from collections import deque
 import tensorflow as tf  # Deep learning library
 import numpy as np  # Handle matrices
 import matplotlib.pyplot as plt
-from datetime import datetime
 import gym
 import random
 import sys
 
-#####################################
+#######################################################################
+# Program takes a given path, loads the stored TF model, and runs a
+# number of episodes, with all actions predicted by the TF model
+#######################################################################
+
+#######################################################################
 # Environment parameters
-#####################################
+#######################################################################
 # Number of episodes to run for
 NUM_EPISODES = 20
 # Size of frame stack
@@ -26,12 +30,13 @@ STATE_COUNT = 2 * STACK_SIZE
 ACTION_COUNT = 3
 # Nodes for TF - default 50
 NODES = 50
-# Select all actions at random - don't use TF
-# For base case comparison against trained models
-# For ease, will still need valid TF model to be populated
+
+# Select all actions at random instead of using TF, to produce base case
+# Still needs valid TF model to be populated
 USE_RANDOM = True
 
 print("Running LIVE TEST")
+
 
 class RLAgent:
     # Constructor
@@ -108,8 +113,6 @@ class RLAgent:
 
         # Get ref for saving NN model
         self._saver = tf.train.Saver()
-
-
 
     def load_model(self, session):
         path = "%s/model.ckpt" % PATH
@@ -210,10 +213,9 @@ class TestRunner:
     def _choose_action(self, state):
 
         if USE_RANDOM:
-            # Select a random action
+            # Select a random action - only when producing base case
             return random.randint(0, ACTION_COUNT - 1)
         else:
-            print("USED TF - FAIL")
             # Get prediction from RL agent and return highest value
             predictions = self._model.predict_single(state, self._sess)
             return np.argmax(predictions)
@@ -288,9 +290,6 @@ if __name__ == "__main__":
 
     # Scoped TF Session for automated clean up when out of scope
     with tf.Session() as sess:
-        # Initialise variables
-        # sess.run(model.tf_variable_initializer)
-        # Initialise game runner
 
         # Load saved model into memory
         model.load_model(sess)

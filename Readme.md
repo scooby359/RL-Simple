@@ -47,8 +47,6 @@ Tensorflow will require version <= 1.14.5, but this isn't compatible with the re
 
 7. Install OpenAI Gym with `pip install gym`
 
-9. The project can then be run from PyCharm by right clicking on the Python file and selecting Run.
+8. The project can then be run from PyCharm by right clicking on the Python file and selecting Run.
 
-10. TensorBoard can be launched to view the loss difference, by running from the terminal `tensorboard --logdir="./tensorboard/[TIMESTAMP]" --port=8809 --host=127.0.0.1`
-
-11. After completion, result graphs should be displayed or can be found in `./result/[TIMESTAMP]/`. The TensorFlow model will also be stored in this directory for reference.
+9. After completion, result graphs will be displayed. The graphs, raw CSV values and the TensorFlow model are saved in `./result/[TIMESTAMP]/`.
